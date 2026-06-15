@@ -1,0 +1,233 @@
+#background {
+  width: 1200px;
+  height: 700px;
+}
+
+/* カード回転の仕組み */
+.card {
+  width: 75px;
+  height: 100px;
+  position: absolute;
+  perspective: 1000px;
+}
+
+.card-inner {
+  width: 100%;
+  height: 100%;
+  transition: transform 0.8s;
+  transform-style: preserve-3d;
+  position: relative;
+}
+
+.card-inner.rotate {
+  transform: rotateY(180deg);
+}
+
+.card-front,
+.card-back {
+  width: 100%;
+  height: 100%;
+  position: absolute;
+  backface-visibility: hidden;
+  border-radius: 8px;
+}
+
+.card-front {
+  transform: rotateY(180deg);
+}
+
+/* 難易度選択画面のデザイン */
+#cpuOptions {
+  display: flex;
+  justify-content: space-around;
+  padding: 20px;
+}
+
+.level {
+  display: flex;
+  width: 250px;
+  height: 375px;
+  justify-content: center;
+  align-items: center;
+  color: #fff;
+  font-size: 40px;
+  font-family: sans-serif;
+  font-weight: bold;
+  border-radius: 8px;
+}
+
+.easy {
+  background-color: #c9ffc6;
+  box-shadow: 
+    0 0 5px #ffffff,
+    0 0 10px #eff1ff,
+    0 0 20px #c1ffe0,
+    0 0 40px #99ffcc,
+    0 0 70px #93ffc9;
+  -webkit-text-stroke: 1.75px #0dc002;
+  color: #bdfe88;
+}
+
+.normal {
+  background-color: #fff5b8;
+  box-shadow:
+    0 0 5px #fffdf0,
+    0 0 10px #fff7c2,
+    0 0 20px #ffffba,
+    0 0 40px #ffefd5,
+    0 0 70px #ffd893;
+  -webkit-text-stroke: 1.75px #bb9c01;
+  color: #fef3b9;
+}
+
+.hard {
+  background-color: #ffbdbd;
+  box-shadow:
+    0 0 5px #ffccff,
+    0 0 10px #e5c1cd,
+    0 0 20px #f5b2b2,
+    0 0 40px #e3abc1,
+    0 0 70px #de82a7;
+  -webkit-text-stroke: 1.75px #e0010e;
+  color: #ffc2c5;
+}
+
+/* プレイヤー交代メッセージのデザイン */
+.playerChange {
+  position: absolute;
+  top: 40px;
+  left: 700px;
+  font-size: 40px;
+  transition: all 0.3s ease;
+}
+
+.conveyUser {
+  color: #e34234;
+  font-size: 50px;
+}
+
+.conveyCpu {
+  color: #808080;
+}
+
+/* ランキング画面のデザイン */
+.ranking {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.75);
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: #fff;
+  font-size: 30px;
+  animation: fadeIn 0.3s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.closeBtn {
+  font-family: sans-serif;
+  font-weight: bold;
+  font-size: 20px;
+  background-color: #000;
+  width: 5em;
+  height: 3em;
+  color: #fff;
+  border: 3px solid #fff;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.closeBtn:hover {
+  background-color: #fff;
+  color: #000;
+}
+
+/* リセットボタンのデザイン */
+.resetBtnContainer {
+  display: flex;
+  justify-content: space-between;
+  text-align: center;
+  padding: 20px;
+}
+
+.resetBtn {
+  position: relative;
+  font-family: sans-serif;
+  font-weight: bold;
+  font-size: 20px;
+  width: 25em;
+  height: 5em;
+  color: #000;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.changeBtn {
+  position: relative;
+  background-image: linear-gradient(to right, #c9ffc6, #fff5b8, #ffbdbd);
+}
+
+.resetBtn:hover {
+  transform: translateY(4px);
+}
+
+.changeBtn::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+  box-shadow: 0 6px 0px #ccc;
+  z-index: -1;
+  transition: 0.2s;
+}
+
+@supports (-webkit-filter: blur(0)) {
+  .changeBtn::before {
+    background-image: linear-gradient(to right, #b0e6ad, #e6dca1, #e6a8a8);
+    -webkit-filter: blur(0);
+    filter: blur(0);
+    transform: translateY(6px);
+    box-shadow: none;
+  }
+}
+
+.changeBtn:hover::before {
+  content: none;
+}
+
+.noChangeBtn {
+  position: relative;
+  width: 24em;
+  height: 4em;
+  transition: 0.2s;
+}
+
+.noChangeBtn:hover {
+  box-shadow: none !important;
+}
+
+.userRank {
+  color: #ff00ff;
+  font-size: 40px;
+}
+
+/* 画面から隠すための設定 */
+.hide {
+  display: none;
+}
