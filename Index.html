@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang = "ja">
+  <head>
+    <meta charset = "UTF-8">
+    <link rel = "stylesheet" href = "style.css">
+  </head>
+  <body>
+    <div id = "gameContainer">
+      <p>あなたの得点:<span id = "userScore">0</span> ベストスコア<span id = "userBest">0</span></p>
+      <p>CPU1の得点:<span id = "cpu1Score">0</span></p>
+      <p>CPU2の得点:<span id = "cpu2Score">0</span></p>
+      <p>CPU3の得点:<span id = "cpu3Score">0</span></p>
+      <p class = "playerChange"></p>
+      <div id = "table">
+        <img src = "images/background.jpg" id = "background">
+      </div>
+    </div>
+
+    <div id = "cpuOptions">
+      <div class = "hide level easy">弱い</div>
+      <div class = "hide level normal">ふつう</div>
+      <div class = "hide level hard">強い</div>
+    </div>
+
+    <script>
+      /* 難易度別cpu・最終結果ボタン設定 */
+      let cpuOptions = [
+        { name: "弱い", btnFaceColor: "#c9ffc6", btnShadowColor: "#b0e6ad", missRate: 0.9, userBestScore: 0},
+        { name: "ふつう", btnFaceColor: "#fff5b8", btnShadowColor: "#e6dca1", missRate: 0.75, userBestScore: 0},
+        { name: "強い", btnFaceColor: "#ffbdbd", btnShadowColor: "#e6a8a8", missRate: 0.5, userBestScore: 0}
+      ];
+      let cpuLevel;
+
+      /* 効果音 */
+      const sounds = {
+        match: new Audio("sounds/success.mp3"),
+        mismatch: new Audio("sounds/fail.mp3"),
+        joker: new Audio("sounds/joker.mp3"),
+        flips: [
+          new Audio("sounds/flip1.mp3"),
+          new Audio("sounds/flip2.mp3"),
+          new Audio("sounds/flip3.mp3")
+        ]
+      };
+      Object.values(sounds).flat().forEach(s => s.preload = "auto");
+
+      /* ユーザー表示メッセージ */
+      let playerChangeMessage = document.querySelector(".playerChange");
+
+      /* 難易度選択画面 */
+      setting();
+
+      function setting() {
+        screenChange();
+
+        const levels = document.querySelectorAll(".level");
+        levels.forEach(level => {
+          level.addEventListener("click", (e) => {
+            unlockSounds();
+            cpuLevel = Array.from(levels).findIndex(element => element === e.target);
+            if (cpuLevel >= 0) {
+              screenChange();
+              startGame();
+            }
+          });
+        });
+      }
+
+      /* 難易度選択とゲーム画面の切り替え */
+      function screenChange() {
+        document.getElementById("gameContainer").classList.toggle("hide");
+        const levels = document.querySelectorAll(".level");
+        levels.forEach(level => level.classList.toggle("hide"));
+      }
+
+      /* 効果音のモバイル対応 */
+      function unlockSounds() {
+        Object.values(sounds).flat().forEach(s => {
+          s.play().then(() => {
+            s.pause();
+            s.currentTime = 0;
+          }).catch(() => {});
+        });
+      }
+
+
+      function startGame() {
+        /* プレイヤー設定 */
+        let players = [
+         { name: "cpu1", score: 0, jokerRate: 0.2},
+         { name: "cpu2", score: 0, jokerRate: 0.5},
+         { name: "cpu3", score: 0, jokerRate: 0.8},
+         { name: "あなた", score: 0 }
+        ];
+        updateScores(players);
+        function updateScores(players) {
+          document.getElementById("cpu1Score").textContent = players[0].score;
+          document.getElementById("userBest").textContent = "(cpuの強さ…" + cpuOptions[cpuLevel].name + "):" + cpuOptions[cpuLevel].userBestScore;
+          document.getElementById("cpu2Score").textContent = players[1].score;
+          document.getElementById("cpu3Score").textContent = players[2].score;
+          document.getElementById("userScore").textContent = players[3].score;
+        }
+
+        /* 得点計算関連の変数 */
+        const TARGET_SUM = 14;
+        let check;
+        let jokerLuck = 0;
+        let continuous = 0;
+        let factor = 1;
+        let contiCount = 0; /* 連続カウント */
+
+        /* カード・cpuの記憶の管理関連の変数 */
+        let beforeTrump;
+        let flipedCards = [];
+        let trumpNums = [];
+        let restCards = [];
+        let cpuMemories = new Set();
+
+        /* トランプ配置 */
+        const table = document.getElementById("table");
+        const positions = [];
+
+        const cardW = 75;
+        const cardH = 100;
+        const gap = 10;
+
+        const cols = 13;
+        const rows = 5;
+
+        const startX = 20;
+        const startY = 200;
+
+        for (let r = 0; r < rows; r++) {
+          for (let c = 0; c < cols; c++) {
+            positions.push({
+              x: startX + c * (cardW + gap),
+              y: startY + r * (cardH + gap)
+            });
+          }
+        }
+        positions.sort(() => Math.random() - 0.5);
+
+
+        for (let i = 0; i < 53; i++) {
+          const card = document.createElement("div");
+          card.id = i;
+          card.classList.add("card");
+          restCards.push(i);
+
+          const cardInner = document.createElement("div");
+          cardInner.classList.add("card-inner");
+
+          const cardBack = document.createElement("img");
+          cardBack.src = "images/card-back.png";
+          cardBack.classList.add("card-back");
+
+          const cardFront = document.createElement("img");
+          cardFront.src = "images/" + i + ".png";
+          cardFront.classList.add("card-front");
+
+          const col = i % cols;
+          const row = Math.floor(i / cols);
+
+          card.style.left = positions[i].x + "px";
+          card.style.top  = positions[i].y + "px";
+
+          cardInner.appendChild(cardFront);
+          cardInner.appendChild(cardBack);
+          card.appendChild(cardInner);
+          table.appendChild(card);
+        }
+
+        /* 順番決め・ユーザー決定 */
+        let player = Math.floor(Math.random() * 4);
+        playerDecision(player);
+        function playerDecision(player) {
+          check = 0;
+          flipedCards = [];
+          trumpNums = [];
+          playerChangeMessage.textContent = players[player].name + "の番です";
+          playerChangeMessage.classList.remove("conveyUser", "conveyCpu");
+          if(player === 3) {
+            playerChangeMessage.classList.add("conveyUser");
+            userPlay();
+          } else {
+            playerChangeMessage.classList.add("conveyCpu");
+            cpuPlay();
+          }
+
+        }
+
+        /* 音鳴らす */
+        function playSound(audio, volume = 1) {
+          const sound = audio.cloneNode();
+          sound.volume = volume;
+          sound.currentTime = 0;
+          sound.play();
+          sound.addEventListener("ended", () => {
+            sound.remove();
+          });
+        }
+
+        /* ユーザー動作 */
+        function userPlay() {
+          table.addEventListener("click", (e) => {
+            if (player !== 3) return;
+            const card = e.target.closest(".card");
+
+            /* カードでないものがクリックされるか、すでにめくられたカードがクリックされるか、めくれる機会を使い果たした場合は何も反応しない */
+            if (
+              !card ||
+              flipedCards.includes(Number(card.id)) ||
+              ((flipedCards.length === 2) && (jokerLuck === 0)) || 
+              ((flipedCards.length === 3) && (jokerLuck === 1)) 
+            ) return;
+            result(Number(card.id));
+          });
+        }
+
+        /* cpu操作　*/
+        function cpuPlay() {
+          if (player === 3) return;
+
+          /* 適当に1枚目をとる */
+          setTimeout(() => {
+            let index = Math.floor(Math.random() * restCards.length);
+            result(restCards[index]);
+          }, 1100);
+
+
+         /* 2枚目以降は記憶を頼りにカードをとる */
+         let cpuPlay2 = setInterval(() => {
+           let cpuWant;
+
+           /* ジョーカーチャンス狙い */
+           let exp = Math.random();
+           const rate = players[player].jokerRate;
+           /* ジョーカーを取ったら1か13を半々の確率で狙う */
+           if (beforeTrump === 14) cpuWant = (exp >= 0.5) ? 1 : 13;
+           /* 1(13)を取ったらジョーカーを取る確率によってジョーカーを狙うか13(1)を狙うか決まる */
+           else if (beforeTrump === 1) cpuWant = (exp >= rate) ? 13 : 14;
+           else if (beforeTrump === 13) cpuWant = (exp >= rate) ? 1 : 14;
+           /* ジョーカーも1も13もとらなかったら通常通りに */
+           else cpuWant = 14 - beforeTrump;
+
+           /* 欲しいカードを覚えているか？ */
+           let knowWanted = cpuMemories.has(cpuWant);
+
+           /* ミスする確率を入れて人間らしさを出す */
+           let missRate = cpuOptions[cpuLevel].missRate;
+           exp = Math.random();
+           let imgNum;
+
+
+           if (knowWanted && (exp >= missRate)) {
+             let candidates = restCards.filter(id => {
+               let num = Math.floor(id / 4) + 1;
+               /* 残っているカードから、1枚目に(ジョーカーがある場合2枚目も)引いていない、欲しい数字をもつカードを調べる */
+               return ((num === cpuWant) && (!flipedCards.includes(id)));
+             });
+
+             /* 欲しいカードが引けるなら引く */
+             if (candidates.length > 0) {
+               imgNum = candidates[Math.floor(Math.random() * candidates.length)];
+             }
+           }
+
+           /* 欲しいカードが引けないならランダム選択 */
+           if (imgNum === undefined) {
+             let index;
+             do {
+               index = Math.floor(Math.random() * restCards.length);
+             } while (flipedCards.includes(restCards[index])); /* 1枚目2枚目で引いていないカード */
+
+             imgNum = restCards[index];
+           }
+           result(imgNum);
+
+           /* 機会を使い果たしたら終了 */
+           if (
+             ((flipedCards.length === 2) && (jokerLuck === 0)) ||
+             ((flipedCards.length === 3) && (jokerLuck === 1))
+           ) clearInterval(cpuPlay2);
+
+         }, 2200);
+       }
+
+        function result(num) {
+        /* トランプひっくり返す */
+          const flipSound = sounds.flips[Math.floor(Math.random() * sounds.flips.length)];
+
+          const card = document.getElementById(num);
+          const Inner = card.querySelector(".card-inner");
+          Inner.classList.add("rotate");
+          if (num === 52) {
+            sounds.joker.currentTime = 0;
+            sounds.joker.volume = 0.8;
+            sounds.joker.play();
+          } else {
+            playSound(flipSound, 0.5);
+          }
+
+          /* 得点計算の準備とcpuの記憶への追加 */
+          let trumpNum = Math.floor(num/4) + 1;
+          cpuMemories.add(trumpNum);
+          flipedCards.push(num);
+          trumpNums.push(trumpNum);
+          beforeTrump = trumpNum;
+
+          if (num !== 52) {
+            check += trumpNum;
+            factor *= trumpNum;
+          }
+
+          if (trumpNums.includes(14)) jokerLuck = 1;
+
+          if (
+            ((flipedCards.length === 2) && (jokerLuck === 0)) ||
+            ((flipedCards.length === 3) && (jokerLuck === 1))
+          ) {
+            let resultShow = setTimeout(() => {
+              let scoreToAdd;
+              if (check === TARGET_SUM) {
+                function has(num, list) {
+                  return list.includes(num);
+                }
+
+                let hasJoker = has(14, trumpNums);
+                let has1 = has(1, trumpNums);
+                let has13 = has(13, trumpNums);
+
+                /* ジョーカーがある場合連続ボーナスは無効。ジョーカーなしの場合に2倍にするのでジョーカーがあることが発覚したそのときに1/2することで無効化 */
+                if (hasJoker && continuous === 1) factor /= 2;
+
+                /* ジョーカー、1、13の組み合わせだけ200点獲得、他は通常得点 */
+                if (hasJoker && (has1 || has13)) scoreToAdd = 100;
+                else scoreToAdd = factor;
+
+                /* ジョーカーがないときにマークが同じ場合30点獲得 */
+                if (!hasJoker && flipedCards[0] % 4 === flipedCards[1] % 4) scoreToAdd += 30;
+
+                players[player].score += scoreToAdd;
+                /* その難易度でのベストスコアを更新した場合データを塗り替える */
+                if (players[3].score >= cpuOptions[cpuLevel].userBestScore) cpuOptions[cpuLevel].userBestScore = players[3].score;
+                updateScores(players);
+
+                flipedCards.forEach(cardEl => {
+                  let num = Math.floor(cardEl / 4) + 1;
+
+                  /* ジョーカー、1、13以外の組み合わせでジョーカーと足して14の2枚が揃った場合ジョーカーは場に残り、cpuの記憶からも削除されないようにする */
+                  if ((num !== 14) || (has1 || has13)) {
+                    cpuMemories.delete(num);
+                    document.getElementById(cardEl).remove();
+                    restCards = restCards.filter(n => n !== cardEl);
+                  } else document.getElementById(cardEl).querySelector(".card-inner").classList.remove("rotate");
+                });
+
+                playSound(sounds.match, 0.5);
+                continuous = 1;
+                factor = 2; /* 次も揃ったら得点2倍(ジョーカーがなければ) */
+                contiCount++;
+                if (contiCount >= 2) {
+                  continuous = 0;
+                  contiCount = 0;
+                  player = (player + 1) % 4;
+                }
+
+              } else {
+                factor = 1;
+                contiCount = 0;
+
+                flipedCards.forEach(notPair => {
+
+                  document.getElementById(notPair).querySelector(".card-inner").classList.remove("rotate");
+              });
+                playSound(sounds.mismatch);
+                continuous = 0; /* 連続モードストップ */
+                player = (player + 1) % 4 /* プレイヤー交代 */
+              }
+              jokerLuck = 0;
+            },1400);
+
+            let playerChange = setTimeout(() => {
+              if ((restCards.length === 0) || (restCards[0] === 52)) {
+                finalResult(players, restCards.length);
+              } else playerDecision(player);
+            },1700);
+          }
+        }
+      }
+
+      function finalResult(playersArray, restJoker) {
+        const ranking = document.createElement("div");
+        ranking.classList.add("ranking");
+
+        /* ランキング。同点の場合は同じ順位で表示 */
+        let sortedPlayers = [...playersArray].toSorted((a, b) => b.score - a.score);
+        let rank = 1;
+        for (let i = 0; i < sortedPlayers.length; i++) {
+          if (i > 0 && sortedPlayers[i].score < sortedPlayers[i - 1].score) rank = i + 1;
+          sortedPlayers[i].rank = rank;
+
+          const rankShow = document.createElement("p");
+          rankShow.textContent = sortedPlayers[i].rank + "位: " + sortedPlayers[i].name + "... " + sortedPlayers[i].score + "点";
+          ranking.appendChild(rankShow);
+
+          /* もしその難易度でベストスコアを更新したらお祝いメッセージ表示 */
+          if (sortedPlayers[i].name === "あなた") {
+            rankShow.classList.add("userRank");
+            if (sortedPlayers[i].score === cpuOptions[cpuLevel].userBestScore) {
+              const bestCongrats = document.createElement("p");
+              bestCongrats.textContent = "🎉ベストスコア！🎉(cpuの強さ…" + cpuOptions[cpuLevel].name + ")";
+              ranking.appendChild(bestCongrats);
+            }
+          }
+        }
+
+        /* ランキング閉じるボタン */
+        const closeBtn = document.createElement("button");
+        closeBtn.textContent = "OK";
+        closeBtn.classList.add("closeBtn");
+        closeBtn.addEventListener("click", () => ranking.remove());
+        ranking.appendChild(closeBtn);
+        document.body.appendChild(ranking);
+
+        /* リセットボタン(難易度変更なし・あり) */
+        const btns = document.createElement("div");
+        btns.classList.add("resetBtnContainer");
+
+        const noChangeReset = document.createElement("button");
+        noChangeReset.textContent = "cpuの強さを変更せずにもう一度プレイ";
+        noChangeReset.classList.add("resetBtn", "noChangeBtn");
+        /* その難易度と同じ色のボタン、立体感を出すための影つき */
+        noChangeReset.style.backgroundColor = cpuOptions[cpuLevel].btnFaceColor;
+        noChangeReset.style.boxShadow = "0 6px 0 " + cpuOptions[cpuLevel].btnShadowColor;
+        btns.appendChild(noChangeReset);
+
+        const changeReset = document.createElement("button");
+        changeReset.textContent = "cpuの強さを変更してもう一度プレイ";
+        changeReset.classList.add("resetBtn", "changeBtn");
+        btns.appendChild(changeReset);
+
+        document.body.appendChild(btns);
+
+        noChangeReset.addEventListener("click", () => {
+          removeBtns();
+          startGame();
+        });
+
+        changeReset.addEventListener("click", () => {
+          removeBtns();
+          cpuLevel = -1;
+          screenChange();
+        });
+
+        function removeBtns() {
+          if (restJoker === 1) document.getElementById("52").remove(); /* ジョーカー残ってたら消す */
+          ranking.remove();
+          btns.remove();
+        }
+      }
+    </script>
+  </body>
+</html>
